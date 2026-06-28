@@ -1,0 +1,67 @@
+# -*- coding: utf-8 -*-
+"""
+稳定性评估与综合筛选
+基于已知稳定突变位点进行评分
+"""
+import pandas as pd
+
+print("=" * 50)
+print("GFP 稳定性评估与综合筛选")
+print("=" * 50)
+
+# 读取候选序列
+df = pd.read_csv("Top20_候选序列_带完整序列.csv")
+print(f"✅ 读取到 {len(df)} 条候选序列")
+
+# 定义已知稳定突变位点及权重（基于文献和sfGFP特征突变）
+STABILITY_WEIGHTS = {
+    # sfGFP核心稳定突变（超折叠突变）
+    "F64L": 1.2,
+    "S65T": 0.8,
+    "S72A": 0.6,
+    # 其他已知稳定突变
+    "S175G": 0.3,
+    "A206K": 0.2,
+    "I167T": 0.2,
+    # 中性突变（不影响稳定性）
+    "S208L": 0.0,
+}
+
+def evaluate_stability(mutation_str):
+    """评估单条序列的稳定性得分"""
+    if pd.isna(mutation_str) or mutation_str == "":
+        return 0.0
+    score = 0.0
+    for mut in mutation_str.split(":"):
+        mut = mut.strip()
+        if mut in STABILITY_WEIGHTS:
+            score += STABILITY_WEIGHTS[mut]
+    return score
+
+# 计算每条序列的稳定性得分
+df["稳定性得分"] = df["突变组合"].apply(evaluate_stability)
+
+# 计算综合得分（亮度 × 稳定性）
+df["综合得分"] = df["预测亮度"] * df["稳定性得分"]
+
+# 按综合得分排序
+df_sorted = df.sort_values("综合得分", ascending=False)
+
+print("\n📊 综合排名（亮度 × 稳定性）:")
+print(df_sorted[["突变组合", "预测亮度", "稳定性得分", "综合得分"]].to_string())
+
+# 选出 Top 6
+top6 = df_sorted.head(6).copy()
+top6["Seq_ID"] = range(1, 7)
+top6["Team_Name"] = "YourTeamName"  # 请替换为真实队名
+
+# 生成提交文件
+submission = top6[["Team_Name", "Seq_ID", "完整序列"]]
+submission.columns = ["Team_Name", "Seq_ID", "Sequence"]
+submission.to_csv("submission.csv", index=False)
+
+print("\n✅ 筛选完成！推荐提交的 Top 6 序列:")
+print(submission.to_string())
+
+print("\n💾 提交文件已保存为: submission.csv")
+print("请将 'YourTeamName' 替换为真实队名后提交")
